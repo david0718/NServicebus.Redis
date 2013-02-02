@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("Redis")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("NServiceBus.Redis")]
+[assembly: AssemblyDescription("Redis transport and persistence provider for NServiceBus")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("Redis")]
+[assembly: AssemblyProduct("NServiceBus/Redis")]
 [assembly: AssemblyCopyright("Copyright ©  2012")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]

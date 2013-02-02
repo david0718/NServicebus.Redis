@@ -7,12 +7,13 @@
     <ProjectGuid>{E73DA9E3-B727-4E73-B45C-66B017F93A0B}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Redis</RootNamespace>
-    <AssemblyName>Redis</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <RootNamespace>NServiceBus.Redis</RootNamespace>
+    <AssemblyName>NServiceBus.Redis</AssemblyName>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">.\</SolutionDir>
     <RestorePackages>true</RestorePackages>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -35,11 +36,13 @@
     <Reference Include="log4net">
       <HintPath>packages\log4net.1.2.10\lib\2.0\log4net.dll</HintPath>
     </Reference>
-    <Reference Include="NServiceBus">
-      <HintPath>packages\NServiceBus.3.2.8\lib\net40\NServiceBus.dll</HintPath>
+    <Reference Include="NServiceBus, Version=3.3.0.0, Culture=neutral, PublicKeyToken=9fc386479f8a226c, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>packages\NServiceBus.Interfaces.3.3.4\lib\net40\NServiceBus.dll</HintPath>
     </Reference>
-    <Reference Include="NServiceBus.Core">
-      <HintPath>packages\NServiceBus.3.2.8\lib\net40\NServiceBus.Core.dll</HintPath>
+    <Reference Include="NServiceBus.Core, Version=3.3.0.0, Culture=neutral, PublicKeyToken=9fc386479f8a226c, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>packages\NServiceBus.3.3.4\lib\net40\NServiceBus.Core.dll</HintPath>
     </Reference>
     <Reference Include="ServiceStack.Common">
       <HintPath>packages\ServiceStack.Common.3.9.11\lib\net35\ServiceStack.Common.dll</HintPath>
@@ -50,11 +53,14 @@
     <Reference Include="ServiceStack.Redis">
       <HintPath>packages\ServiceStack.Redis.3.9.11\lib\net35\ServiceStack.Redis.dll</HintPath>
     </Reference>
-    <Reference Include="ServiceStack.Text">
-      <HintPath>packages\ServiceStack.Text.3.9.11\lib\net35\ServiceStack.Text.dll</HintPath>
+    <Reference Include="ServiceStack.Text, Version=3.9.35.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>packages\ServiceStack.Text.3.9.35\lib\net35\ServiceStack.Text.dll</HintPath>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.configuration" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Transactions" />
     <Reference Include="System.Web.Extensions" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -63,9 +69,19 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ActionResourceManager.cs" />
+    <Compile Include="ConcurrencyException.cs" />
     <Compile Include="ConfigureRedisQueue.cs" />
+    <Compile Include="ISerializer.cs" />
+    <Compile Include="JsonSerializer.cs" />
+    <Compile Include="ReceiveResourceManager.cs" />
     <Compile Include="RedisQueue.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RedisSagaPersister.cs" />
+    <Compile Include="RedisSubscriptionStorage.cs" />
+    <Compile Include="RedisTimeoutPersistence.cs" />
+    <Compile Include="SendResourceManager.cs" />
+    <Compile Include="UniquePropertyException.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

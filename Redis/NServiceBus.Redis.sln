@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2012
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Redis", "Redis.csproj", "{E73DA9E3-B727-4E73-B45C-66B017F93A0B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NServiceBus.Redis", "NServiceBus.Redis.csproj", "{E73DA9E3-B727-4E73-B45C-66B017F93A0B}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{4B5BCA28-CFD9-4DE3-A3E3-DFF94076F2F0}"
 	ProjectSection(SolutionItems) = preProject
