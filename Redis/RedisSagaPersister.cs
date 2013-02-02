@@ -152,48 +152,49 @@ namespace NServiceBus.Redis
 
 		public void Save(ISagaEntity saga)
 		{
-			var stringId = saga.Id.ToString("N");
-
-			var sagaKey = GetSagaKey(saga);
-			var sagaPropertyMapKey = GetSagaPropertyMapKey(saga);
-			var sagaVersionKey = GetSagaVersionKey(saga);
-
-			var uniqueProperties = UniqueAttribute.GetUniqueProperties(saga);
-
 			Action saveSagaAction = () =>
 			{
+				var stringId = saga.Id.ToString("N");
+				var sagaKey = GetSagaKey(saga);
+				var sagaPropertyMapKey = GetSagaPropertyMapKey(saga);
+				var sagaVersionKey = GetSagaVersionKey(saga);
+				var uniqueProperties = UniqueAttribute.GetUniqueProperties(saga);
+
 				using (var client = GetClient())
 				{
-					long version = client.Increment(sagaVersionKey, 1);
-
-					SetSagaVersion(saga, version);
-
-					var sagaString = Serialize(saga);
-
-					//Check that unique properties don't already exist for a different saga
-					foreach (var prop in uniqueProperties)
+					using (var rlock = client.AcquireLock(stringId, TimeSpan.FromSeconds(30)))
 					{
-						var propertyKey = GetPropertyKey(saga.GetType(), prop.Key, prop.Value);
-						var sagaId = client.Get<string>(propertyKey);
-						if (sagaId != null)
-						{
-							if (saga.Id != Guid.Parse(sagaId))
-							{
-								throw new UniquePropertyException("Unique property " + prop.Key + " already exists with value " + prop.Value);
-							}
-						}
-					}
+						long version = client.Increment(sagaVersionKey, 1);
 
-					using (var tran = client.CreateTransaction())
-					{
-						tran.QueueCommand(c => c.Set(sagaKey, sagaString));
+						SetSagaVersion(saga, version);
+
+						var sagaString = Serialize(saga);
+
+						//Check that unique properties don't already exist for a different saga
 						foreach (var prop in uniqueProperties)
 						{
 							var propertyKey = GetPropertyKey(saga.GetType(), prop.Key, prop.Value);
-							tran.QueueCommand(c => c.Lists[sagaPropertyMapKey].Add(propertyKey)); //Link from saga ID to property key
-							tran.QueueCommand(c => client.Set(propertyKey, stringId));  //Link from property key to saga
+							var sagaId = client.Get<string>(propertyKey);
+							if (sagaId != null)
+							{
+								if (saga.Id != Guid.Parse(sagaId))
+								{
+									throw new UniquePropertyException("Unique property " + prop.Key + " already exists with value " + prop.Value);
+								}
+							}
 						}
-						tran.Commit();
+
+						using (var tran = client.CreateTransaction())
+						{
+							tran.QueueCommand(c => c.Set(sagaKey, sagaString));
+							foreach (var prop in uniqueProperties)
+							{
+								var propertyKey = GetPropertyKey(saga.GetType(), prop.Key, prop.Value);
+								tran.QueueCommand(c => c.Lists[sagaPropertyMapKey].Add(propertyKey)); //Link from saga ID to property key
+								tran.QueueCommand(c => client.Set(propertyKey, stringId));  //Link from property key to saga
+							}
+							tran.Commit();
+						}
 					}
 				}
 			};
