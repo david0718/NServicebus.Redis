@@ -68,7 +68,8 @@ namespace NServiceBus.Redis
 
 		protected string GetKeyPrefix()
 		{
-			return "nsb:timeouts:" + _endpointName;
+			if (string.IsNullOrEmpty(_endpointName)) throw new ArgumentException("No endpoint name has been supplied!");
+			return "nsb:timeouts:" + _endpointName.ToLower();
 		}
 
 		protected string GetSagaIdMapHashName()
@@ -184,18 +185,17 @@ namespace NServiceBus.Redis
 
 				if (timeoutString != null)
 				{
-					var myTimeoutData = Deserialize(timeoutString);
+					var timeout = Deserialize(timeoutString);
+					timeoutData = timeout;
 
 					using (var tran = client.CreateTransaction())
 					{
 						tran.QueueCommand(c => c.Lists[GetTimeoutIdsListName()].Remove(timeoutId));
 						tran.QueueCommand(c => c.Hashes[GetTimeoutDataHashName()].Remove(timeoutId));
 						tran.QueueCommand(c => c.SortedSets[GetTimeoutTimesSortedSetName()].Remove(timeoutId));
-						tran.QueueCommand(c => c.Hashes[GetSagaIdMapHashName()].Remove(myTimeoutData.SagaId.ToString("N")));
+						tran.QueueCommand(c => c.Hashes[GetSagaIdMapHashName()].Remove(timeout.SagaId.ToString("N")));
 						tran.Commit();
 					}
-
-					timeoutData = myTimeoutData;
 
 					return true;
 				}

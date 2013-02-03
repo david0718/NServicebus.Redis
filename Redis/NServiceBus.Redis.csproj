@@ -71,7 +71,7 @@
   <ItemGroup>
     <Compile Include="ActionResourceManager.cs" />
     <Compile Include="ConcurrencyException.cs" />
-    <Compile Include="ConfigureRedisQueue.cs" />
+    <Compile Include="ConfigurationExtensions.cs" />
     <Compile Include="ISerializer.cs" />
     <Compile Include="JsonSerializer.cs" />
     <Compile Include="ReceiveResourceManager.cs" />

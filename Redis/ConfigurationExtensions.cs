@@ -10,7 +10,7 @@ using ServiceStack.Redis;
 
 namespace NServiceBus.Redis
 {
-	public static class ConfigureRedisQueue
+	public static class ConfigurationExtensions
 	{
 		private static void ConfigureRedisClientManager(Configure config, params string[] readWriteHosts)
 		{
@@ -43,7 +43,7 @@ namespace NServiceBus.Redis
 				}
 				else
 				{
-					throw new ConfigurationException("No hosts provided and no config found. Please make sure \"NServiceBus.Redis/Hosts\" is added to <appSettings>");
+					throw new ConfigurationErrorsException("No hosts provided and no config found. Please make sure \"NServiceBus.Redis/Hosts\" is added to <appSettings>");
 				}
 			}
 			else
@@ -52,11 +52,11 @@ namespace NServiceBus.Redis
 			}
 		}
 
-		public static Configure RedisTransport(this Configure config, params string[] readWriteHosts)
+		public static Configure RedisTransport(this Configure config, bool sharedQueues, params string[] readWriteHosts)
 		{
 			config.Configurer.ConfigureComponent<RedisQueue>(() => 
 			{
-				return new RedisQueue(new JsonSerializer(), new PooledRedisClientManager(GetHosts(readWriteHosts)), 60);
+				return new RedisQueue(new JsonSerializer(), new PooledRedisClientManager(GetHosts(readWriteHosts)), 60, sharedQueues);
 			},
 			DependencyLifecycle.SingleInstance);
 
@@ -96,9 +96,9 @@ namespace NServiceBus.Redis
 			return config;
 		}
 
-		public static Configure RedisForEvertything(this Configure config, params string[] readWriteHosts)
+		public static Configure RedisForEverything(this Configure config, params string[] readWriteHosts)
 		{
-			RedisTransport(config, readWriteHosts);
+			RedisTransport(config, false, readWriteHosts);
 			RedisSagaStorage(config, readWriteHosts);
 			RedisSubscriptionStorage(config, readWriteHosts);
 			RedisTimeoutStorage(config, readWriteHosts);

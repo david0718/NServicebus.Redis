@@ -29,16 +29,23 @@ namespace NServiceBus.Redis
 
 		protected ILog _log;
 
-		public RedisQueue(ISerializer serializer, IRedisClientsManager clientManager, int timeoutSeconds)
+		/// <summary>
+		/// If true this will mean that the machine part of the address will not be used and only the logical endpoint name will be used in the
+		/// queue name.
+		/// </summary>
+		protected bool _useSharedEndpointQueues = false;
+
+		public RedisQueue(ISerializer serializer, IRedisClientsManager clientManager, int timeoutSeconds, bool sharedQueues)
 		{
 			_timeoutSeconds = timeoutSeconds;
 			_serializer = serializer;
 			_clientManager = clientManager;
 			_log = log4net.LogManager.GetLogger(typeof(RedisQueue));
+			_useSharedEndpointQueues = sharedQueues;
 		}
 
 		public RedisQueue(ISerializer serializer, IRedisClientsManager clientManager)
-			: this(serializer, clientManager, 60)
+			: this(serializer, clientManager, 60, false)
 		{ }
 
 		//TODO: Pluggable naming convention provider? Or maybe some config file options?
@@ -51,7 +58,8 @@ namespace NServiceBus.Redis
 
 		protected string GetBaseQueueName(Address address)
 		{
-			return KeyPrefix + address.Queue + "@" + address.Machine;
+			if (_useSharedEndpointQueues) return KeyPrefix + address.Queue;
+			else return KeyPrefix + address.Queue + "@" + address.Machine;
 		}
 
 		protected string GetCounterName(Address address)

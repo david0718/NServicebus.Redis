@@ -88,6 +88,7 @@ namespace NServiceBus.Redis
 
 		protected long GetSagaVersion(ISagaEntity saga)
 		{
+			//TODO: Use an attribute instead of fixed property name?
 			var versionProp = saga.GetType().GetProperties().FirstOrDefault(o => o.Name == "Version");
 
 			if (versionProp == null) throw new MissingMemberException("'Version' property must be defined on saga data");

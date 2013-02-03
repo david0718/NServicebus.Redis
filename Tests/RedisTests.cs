@@ -37,11 +37,11 @@ namespace Tests
 		private IBus GetBus()
 		{
 			return Configure.With()
-				.DefineEndpointName("Test")
+				.DefineEndpointName("test")
 				.DefaultBuilder()
 				.Log4Net()
 				.JsonSerializer()
-				.RedisForEvertything("localhost")
+				.RedisForEverything("localhost")
 				.UnicastBus()
 				.IsTransactional(true)
 				.DisableSecondLevelRetries() //TODO: Need to make this not look at MSMQ?
@@ -83,7 +83,7 @@ namespace Tests
 			var clientManager = new PooledRedisClientManager();
 
 			var store = new RedisTimeoutPersistence(new JsonSerializer(), clientManager);
-			store.EndpointName = "timeouttest@localhost";
+			store.EndpointName = "timeouttest";
 
 			clientManager.GetClient().FlushDb();
 			
@@ -91,7 +91,7 @@ namespace Tests
 			{
 				SagaId = Guid.NewGuid(),
 				Time = DateTime.UtcNow.AddSeconds(-30),
-				OwningTimeoutManager = "test@localhost",
+				OwningTimeoutManager = store.EndpointName,
 				Destination = Address.Parse("test@localhost"),
 			};
 
@@ -113,7 +113,7 @@ namespace Tests
 			var clientManager = new PooledRedisClientManager();
 
 			var store = new RedisTimeoutPersistence(new JsonSerializer(), clientManager);
-			store.EndpointName = "timeouttest@localhost";
+			store.EndpointName = "timeouttest";
 
 			clientManager.GetClient().FlushDb();
 
@@ -121,7 +121,7 @@ namespace Tests
 			{
 				SagaId = Guid.NewGuid(),
 				Time = DateTime.UtcNow.AddSeconds(-30),
-				OwningTimeoutManager = "test@access-djz9x4j",
+				OwningTimeoutManager = store.EndpointName,
 				Destination = Address.Parse("test@access-djz9x4j"),
 			};
 
