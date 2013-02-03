@@ -17,6 +17,7 @@ using NServiceBus.Serializers.Json;
 using NServiceBus.MessageInterfaces.MessageMapper.Reflection;
 using NServiceBus.Unicast.Transport;
 using System.IO;
+using NServiceBus.Redis.Management;
 
 namespace Tests
 {
@@ -27,7 +28,7 @@ namespace Tests
 	[TestFixture]
 	public class RedisTests
 	{
-		private IBus _bus;
+		//private IBus _bus;
 		
 		public RedisTests()
 		{
@@ -41,10 +42,9 @@ namespace Tests
 				.DefaultBuilder()
 				.Log4Net()
 				.JsonSerializer()
-				.RedisForEverything("localhost")
 				.UnicastBus()
 				.IsTransactional(true)
-				.DisableSecondLevelRetries() //TODO: Need to make this not look at MSMQ?
+				.RedisForEverything(true, "localhost")
 				.CreateBus()
 				.Start();
 
@@ -245,6 +245,69 @@ namespace Tests
 		}
 
 		[Test]
+		public void Queue_Manager_Test()
+		{
+			var clientManager = new PooledRedisClientManager();
+			clientManager.GetClient().FlushDb();
+			var manager = new QueueManager(new JsonSerializer(), clientManager, new QueueKeyNameProvider(false));
+			var messageMapper = new MessageMapper();
+			messageMapper.Initialize(new[] { typeof(TestMessage), typeof(TestEvent) });
+
+			var nsbSerializer = new JsonMessageSerializer(messageMapper);
+
+			var message = new TestMessage()
+			{
+				Name = "Bob"
+			};
+
+			var transportMessage = new TransportMessage()
+			{
+				Id = Guid.NewGuid().ToString("N"),
+				MessageIntent = MessageIntentEnum.Send,
+				Headers = new Dictionary<string,string>()
+			};
+
+			transportMessage.Headers["NServiceBus.FailedQ"] = "original";
+
+			using (var ms = new MemoryStream())
+			{
+				nsbSerializer.Serialize(new[] { message }, ms);
+				transportMessage.Body = ms.ToArray();
+			}
+
+			var errorAddress = Address.Parse("error");
+
+			manager.SendMessageToQueue(transportMessage, errorAddress);
+
+			var messageCount = manager.GetMessageCount(errorAddress);
+
+			var messages = manager.GetAllMessages(errorAddress);
+
+			Assert.IsTrue(messages.Count == 1);
+			Assert.IsTrue(messages[0].Id == transportMessage.Id);
+
+			Assert.IsTrue(messageCount == 1);
+
+			var queues = manager.GetAllQueues();
+
+			Assert.IsTrue(queues.Count == 1);
+
+			manager.ReturnAllMessagesToSourceQueue(errorAddress);
+
+			var queues2 = manager.GetAllQueues();
+
+			Assert.IsTrue(queues2.Count(o => o.Queue == "original") > 0);
+
+			manager.DeleteQueue(Address.Parse("original"));
+
+			var queues3 = manager.GetAllQueues();
+
+			Assert.IsTrue(queues3.Count == 0);
+
+
+		}
+
+		[Test]
 		public void Low_Level_Transport_Test()
 		{
 			
@@ -255,7 +318,7 @@ namespace Tests
 
 			var sendAddress = Address.Parse("lowlevel@localhost");
 
-			var queue = new RedisQueue(new JsonSerializer(), clientManager);
+			var queue = new RedisQueue(new JsonSerializer(), clientManager, new QueueKeyNameProvider(true));
 			queue.Init(sendAddress, true);
 
 			var nsbSerializer = new JsonMessageSerializer(messageMapper);
@@ -328,6 +391,8 @@ namespace Tests
 			bus.Send("test", new TestMessage() { Name = "Mackie3" });
 
 			bus.Publish(new TestEvent() { Name = "Event!" });
+
+			Thread.Sleep(10000);
 
 		}
 	}

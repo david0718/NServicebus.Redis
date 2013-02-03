@@ -10,6 +10,21 @@ using ServiceStack.Redis;
 
 namespace NServiceBus.Redis
 {
+
+	public class SatelliteTransportBuilderInitialization : IWantToRunBeforeConfigurationIsFinalized
+	{
+
+		#region IWantToRunBeforeConfigurationIsFinalized Members
+
+		public void Run()
+		{
+			//Need to override this component because the default one has a hard dependency on MSMQ
+			Configure.Instance.Configurer.ConfigureComponent<SatelliteTransportBuilder>(DependencyLifecycle.SingleInstance);         
+		}
+
+		#endregion
+	}
+
 	public static class ConfigurationExtensions
 	{
 		private static void ConfigureRedisClientManager(Configure config, params string[] readWriteHosts)
@@ -54,12 +69,18 @@ namespace NServiceBus.Redis
 
 		public static Configure RedisTransport(this Configure config, bool sharedQueues, params string[] readWriteHosts)
 		{
+			ConfigureRedisClientManager(config, readWriteHosts);
 			config.Configurer.ConfigureComponent<RedisQueue>(() => 
 			{
-				return new RedisQueue(new JsonSerializer(), new PooledRedisClientManager(GetHosts(readWriteHosts)), 60, sharedQueues);
+				return new RedisQueue(
+					new JsonSerializer(), 
+					new PooledRedisClientManager(GetHosts(readWriteHosts)), 
+					new QueueKeyNameProvider(sharedQueues), 
+					60
+				);
 			},
-			DependencyLifecycle.SingleInstance);
-
+			DependencyLifecycle.InstancePerCall);
+			
 			return config;
 		}
 
@@ -96,13 +117,13 @@ namespace NServiceBus.Redis
 			return config;
 		}
 
-		public static Configure RedisForEverything(this Configure config, params string[] readWriteHosts)
+		public static Configure RedisForEverything(this Configure config, bool sharedQueues, params string[] readWriteHosts)
 		{
-			RedisTransport(config, false, readWriteHosts);
-			RedisSagaStorage(config, readWriteHosts);
-			RedisSubscriptionStorage(config, readWriteHosts);
+			RedisTransport(config, sharedQueues, readWriteHosts);
 			RedisTimeoutStorage(config, readWriteHosts);
-
+			RedisSubscriptionStorage(config, readWriteHosts);
+			RedisSagaStorage(config, readWriteHosts);
+			
 			return config;
 		}
 	}

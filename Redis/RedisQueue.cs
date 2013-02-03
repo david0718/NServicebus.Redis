@@ -9,6 +9,7 @@ using System.Transactions;
 using System.Web.Script.Serialization;
 using log4net;
 using NServiceBus;
+using NServiceBus.Redis.Management;
 using NServiceBus.Serialization;
 using NServiceBus.Unicast.Queuing;
 using NServiceBus.Unicast.Transport;
@@ -23,11 +24,15 @@ namespace NServiceBus.Redis
 
 		protected int _timeoutSeconds = 60;
 
-		protected IRedisClientsManager _clientManager;
+		protected readonly IRedisClientsManager _clientManager;
 
-		protected ISerializer _serializer;
+		protected readonly ISerializer _serializer;
 
-		protected ILog _log;
+		protected readonly IQueueKeyNameProvider _keyNameProvider;
+
+		protected readonly ILog _log;
+
+		protected readonly QueueManager _manager;
 
 		/// <summary>
 		/// If true this will mean that the machine part of the address will not be used and only the logical endpoint name will be used in the
@@ -35,51 +40,71 @@ namespace NServiceBus.Redis
 		/// </summary>
 		protected bool _useSharedEndpointQueues = false;
 
-		public RedisQueue(ISerializer serializer, IRedisClientsManager clientManager, int timeoutSeconds, bool sharedQueues)
+		public RedisQueue(
+			ISerializer serializer, 
+			IRedisClientsManager clientManager, 
+			IQueueKeyNameProvider keyNameProvider,
+			int timeoutSeconds)
 		{
 			_timeoutSeconds = timeoutSeconds;
 			_serializer = serializer;
 			_clientManager = clientManager;
+			_keyNameProvider = keyNameProvider;
 			_log = log4net.LogManager.GetLogger(typeof(RedisQueue));
-			_useSharedEndpointQueues = sharedQueues;
+			_manager = new QueueManager(_serializer, _clientManager, _keyNameProvider);
+
+			if (_timeoutSeconds == 0) _timeoutSeconds = 30;
+			if (_serializer == null) throw new ArgumentNullException("serializer");
+			if (_clientManager == null) throw new ArgumentNullException("clientManager");
+			if (_keyNameProvider == null) throw new ArgumentNullException("keyNameProvider");
 		}
 
-		public RedisQueue(ISerializer serializer, IRedisClientsManager clientManager)
-			: this(serializer, clientManager, 60, false)
+		public RedisQueue(
+			ISerializer serializer, 
+			IRedisClientsManager clientManager,
+			IQueueKeyNameProvider keyNameProvider
+			)
+			: this(serializer, clientManager, keyNameProvider, 60)
 		{ }
 
 		//TODO: Pluggable naming convention provider? Or maybe some config file options?
-		protected const string KeyPrefix = "nsb:queue:";
+		//protected const string KeyPrefix = "nsb:queue:";
 
 		protected string GetMessageIdQueueName(Address address)
 		{
-			return GetBaseQueueName(address) + ":ids";
+			return _keyNameProvider.GetMessageIdQueueName(address);
+			//return GetBaseQueueName(address) + ":ids";
 		}
 
-		protected string GetBaseQueueName(Address address)
-		{
-			if (_useSharedEndpointQueues) return KeyPrefix + address.Queue;
-			else return KeyPrefix + address.Queue + "@" + address.Machine;
-		}
+		//protected string GetBaseQueueName(Address address)
+		//{
+		//	return _keyNameProvider.GetBaseQueueName(address);
+		//	//if (_useSharedEndpointQueues) return KeyPrefix + address.Queue;
+		//	//else return KeyPrefix + address.Queue + "@" + address.Machine;
+		//}
 
 		protected string GetCounterName(Address address)
 		{
-			return GetBaseQueueName(address) + ":counter";
+			return _keyNameProvider.GetCounterName(address);
+			//return GetBaseQueueName(address) + ":counter";
 		}
 
 		protected string GetMessageHashName(Address address)
 		{
-			return GetBaseQueueName(address) + ":messages";
+			return _keyNameProvider.GetMessageHashName(address);
+			//return GetBaseQueueName(address) + ":messages";
 		}
 
 		protected string GetClaimedMessageIdListName(Address address)
 		{
-			return GetBaseQueueName(address) + ":claimed";
+			return _keyNameProvider.GetClaimedMessageIdListName(address);
+			//return GetBaseQueueName(address) + ":claimed";
 		}
 
 		protected string GetMessageClaimTimeoutKey(Address address, string messageId)
 		{
-			return GetBaseQueueName(address) + ":timeout:" + messageId;
+			return _keyNameProvider.GetMessageClaimTimeoutKey(address, messageId);
+			//return GetBaseQueueName(address) + ":timeout:" + messageId;
 		}
 
 		protected RedisClient GetClient()
@@ -103,38 +128,6 @@ namespace NServiceBus.Redis
 		protected TransportMessage Deserialize(string messageString)
 		{
 			return _serializer.DeserializeFromString<TransportMessage>(messageString);
-		}
-
-		/// <summary>
-		/// Expires claimed messages that have exceeded the timeout time and pushes them on the back of the queue again
-		/// </summary>
-		/// <param name="address">Address of the queue to expire</param>
-		/// <returns>Number of messages that were expired</returns>
-		internal int ExpireClaimedMessages(Address address)
-		{
-			if (_log.IsDebugEnabled) _log.Debug("Expiring claimed messages for address: " + address.ToString());
-			using (var client = GetClient())
-			{
-				int expired = 0;
-				string claimedListName = GetClaimedMessageIdListName(address);
-				string queueName = GetMessageIdQueueName(address);
-				foreach (var messageId in client.Lists[claimedListName].GetAll())
-				{
-					if (client.Exists(GetMessageClaimTimeoutKey(address, messageId)) == 0)
-					{
-						using (var tran = client.CreateTransaction())
-						{
-							tran.QueueCommand(c => c.RemoveItemFromList(claimedListName, messageId, -1)); //LREM
-							tran.QueueCommand(c => c.Lists[queueName].Prepend(messageId)); //LPUSH	
-							tran.Commit();
-						}
-						expired++;
-					}
-				}
-				if (_log.IsDebugEnabled) _log.Debug("Expired " + expired + " claimed messages for address: " + address.ToString());
-				return expired;
-			}
-			
 		}
 
 		/// <summary>
@@ -222,12 +215,21 @@ namespace NServiceBus.Redis
 
 		public void Init(Address address, bool transactional)
 		{
+			if (_log.IsDebugEnabled) _log.Debug("Initializing message receiver: " + address.ToString());
+			
 			_receiveAddress = address;
 			_transactional = transactional;
 
-			//Schedule expiry? Will only work in the host
-			if(NServiceBus.Configure.Instance != null)
-				NServiceBus.Schedule.Every(TimeSpan.FromSeconds(30)).Action(() => ExpireClaimedMessages(_receiveAddress));
+			//Schedule expiry. Will only work in the host
+			if (NServiceBus.Configure.Instance != null)
+			{
+				if (_log.IsDebugEnabled) _log.Debug("Scheduling claim expiry: " + address.ToString());
+				NServiceBus.Schedule.Every(TimeSpan.FromSeconds(30)).Action("ExpireClaimed", () => 
+				{
+					_manager.ExpireClaimedMessages(_receiveAddress);
+				});
+			}
+			
 		}
 
 		public bool HasMessage()
