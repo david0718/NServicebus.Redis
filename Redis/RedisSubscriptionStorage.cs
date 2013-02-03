@@ -54,7 +54,8 @@ namespace NServiceBus.Redis
 
 		protected string GetSetName(MessageType messageType)
 		{
-			return "nsb:subs:" + messageType.TypeName + ":" + messageType.Version;
+			//We only care about versioning on major version! (was using the whole version number before)
+			return "nsb:subs:" + messageType.TypeName + ":" + messageType.Version.Major.ToString();
 		}
 
 		public void Subscribe(Address subscriber, IEnumerable<MessageType> messageTypes)
